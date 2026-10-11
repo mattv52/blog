@@ -251,7 +251,17 @@
       const ref = await api("GET", `/git/ref/heads/${branch}`);
       if (!ref) throw new GitHubError(`Branch ${branch} not found.`, 404, false);
       const head = await api("GET", `/git/commits/${ref.object.sha}`);
-      const newTree = await api("POST", "/git/trees", { base_tree: head.tree.sha, tree });
+
+      // Delete photos in this post's folder that it no longer uses (replaced cover, removed photos).
+      // The folder belongs to this post alone: its slug was checked unique when first published.
+      const folder = `assets/images/${slug}/`;
+      const keep = new Set(tree.map((t) => t.path));
+      const existing = (await api("GET", `/contents/${folder.slice(0, -1)}?ref=${ref.object.sha}`)) || [];
+      const removals = (Array.isArray(existing) ? existing : [])
+        .filter((f) => f.type === "file" && f.path.startsWith(folder) && !keep.has(f.path))
+        .map((f) => ({ path: f.path, mode: "100644", type: "blob", sha: null }));
+
+      const newTree = await api("POST", "/git/trees", { base_tree: head.tree.sha, tree: tree.concat(removals) });
       const verb = draft.url ? "Update" : "Add";
       const commit = await api("POST", "/git/commits", {
         message: `${verb} post: ${draft.title || "Untitled"}`,
