@@ -1,0 +1,38 @@
+# Site settings
+title: Wheres Matt At?
+description: >-
+  Hiking the Heysen Trail, from Parachilna Gorge in the Flinders Ranges to Cape Jervis.
+author:
+  name: Matthew Volaris
+
+# Served by GitHub Pages at https://mattv52.github.io/blog/
+url: "https://mattv52.github.io"
+baseurl: "/blog"
+
+# Posts live at /blog/<slug>/ to match the old Squarespace addresses (/blog/day-10)
+permalink: /:title/
+timezone: Australia/Adelaide
+
+# Theme and plugins (all supported natively by GitHub Pages)
+theme: minima
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+# Pages shown in the top navigation, in order
+header_pages:
+  - about.md
+  - live-location.md
+
+show_excerpts: true
+
+minima:
+  social_links:
+    github: mattv52
+
+# Kept out of the built site
+exclude:
+  - copies/
+  - README.md
+  - Gemfile
+  - Gemfile.lock
