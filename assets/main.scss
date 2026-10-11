@@ -1,0 +1,44 @@
+---
+# Only the main Sass file needs front matter (the dashes are enough)
+---
+
+@import "minima";
+
+// Home page: cover image beside each post, stacked above it on phones
+.post-card {
+  display: flex;
+  gap: $spacing-unit * 0.75;
+  align-items: flex-start;
+
+  .post-card-image {
+    flex: 0 0 200px;
+
+    img {
+      display: block;
+      width: 200px;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border-radius: 4px;
+    }
+  }
+
+  .post-card-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  @include media-query($on-palm) {
+    flex-direction: column;
+    gap: $spacing-unit * 0.4;
+
+    .post-card-image,
+    .post-card-image img {
+      width: 100%;
+      flex-basis: auto;
+    }
+
+    .post-card-image img {
+      aspect-ratio: 16 / 9;
+    }
+  }
+}

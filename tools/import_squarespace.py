@@ -35,6 +35,19 @@ JPEG_QUALITY = 82
 # Slugs that Squarespace mangled; old address kept working via redirect_from
 SLUG_FIXES = {"day-5-": "day-5"}
 
+# "Day N" posts are dated to the day walked (Day 1 = 1 August), not the day they were posted
+TRAIL_DAY_1 = datetime(2026, 8, 1, 20, 0, tzinfo=LOCAL_TZ)
+THUMB_SIDE = 800  # home-page cover images
+
+
+def trail_date(title):
+    """'Day 7' -> 7 Aug; 'Days 1-3' / 'Days 1-3 Part 2' -> 3 Aug (part 2 a minute later)."""
+    m = re.match(r"^Days? (?:\d+-)?(\d+)(?: Part (\d+))?$", title.strip())
+    if not m:
+        return None
+    day, part = int(m[1]), int(m[2] or 1)
+    return TRAIL_DAY_1 + timedelta(days=day - 1, minutes=part - 1)
+
 
 # --------------------------------------------------------------------------- HTML -> Markdown
 
@@ -230,11 +243,19 @@ class ImageStore:
         self.done[key] = site_path
         return site_path
 
+    def add_small(self, site_path):
+        """Small copy of an already-written image, for the home-page post list."""
+        src = self.repo_root / site_path.lstrip("/")
+        out = src.with_name(f"{src.stem}-small{src.suffix}")
+        self._write_resized(src, out, src.suffix, THUMB_SIDE)
+        self.bytes_out += out.stat().st_size
+        return "/" + out.relative_to(self.repo_root).as_posix()
+
     @staticmethod
-    def _write_resized(src, out, ext):
+    def _write_resized(src, out, ext, max_side=MAX_SIDE):
         with Image.open(src) as im:
             im = ImageOps.exif_transpose(im)
-            im.thumbnail((MAX_SIDE, MAX_SIDE), Image.LANCZOS)
+            im.thumbnail((max_side, max_side), Image.LANCZOS)
             if ext == ".jpg":
                 im.convert("RGB").save(out, "JPEG", quality=JPEG_QUALITY, optimize=True, progressive=True)
             elif ext == ".webp":
@@ -297,7 +318,7 @@ def main():
         slug = SLUG_FIXES.get(old_slug, old_slug)
         img_slug = slug if status == "publish" else f"drafts/{slug}"
         utc = datetime.strptime(text(it, "wp:post_date"), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-        local = utc.astimezone(LOCAL_TZ)
+        local = trail_date(title) or utc.astimezone(LOCAL_TZ)
 
         conv = SquarespaceToMarkdown(lambda src: store.add(src, img_slug) if CDN_HOST in src else None)
         conv.feed(html)
@@ -315,6 +336,7 @@ def main():
             thumb = inline or store.add(thumb_url, img_slug, prefix="thumb-")
             if thumb:
                 front.append(f"image: {thumb}")
+                front.append(f"thumbnail: {store.add_small(thumb)}")
         if old_slug != slug:
             front.append(f"redirect_from:\n  - /{old_slug}/")
 
