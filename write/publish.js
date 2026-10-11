@@ -85,6 +85,16 @@
     return `/assets/images/${slug}/${n}.jpg`;
   }
 
+  function coverPath(slug, n) {
+    return `/assets/images/${slug}/${n}-small.jpg`;
+  }
+
+  /** The chosen cover (which needn't appear in the post), else the first photo in the post. */
+  function coverNumber(draft, photoNs) {
+    if (draft.cover && photoNs.includes(draft.cover)) return draft.cover;
+    return photoNumbers(draft.body).find((n) => photoNs.includes(n)) || null;
+  }
+
   function buildPost(draft, slug, coverN) {
     const body = normaliseBody(draft.body).replace(
       PHOTO_REF,
@@ -96,8 +106,10 @@
     ];
     if (draft.excerpt && draft.excerpt.trim()) fm.push(`excerpt: ${JSON.stringify(draft.excerpt.trim())}`);
     if (coverN) {
-      fm.push(`image: ${imagePath(slug, coverN)}`);
-      fm.push(`thumbnail: /assets/images/${slug}/${coverN}-small.jpg`);
+      // A cover that isn't in the post only gets its small copy uploaded, so share previews use that
+      const inPost = photoNumbers(draft.body).includes(coverN);
+      fm.push(`image: ${inPost ? imagePath(slug, coverN) : coverPath(slug, coverN)}`);
+      fm.push(`thumbnail: ${coverPath(slug, coverN)}`);
     }
     return `---\n${fm.join("\n")}\n---\n\n${body}\n`;
   }
@@ -182,7 +194,7 @@
     const branch = settings.branch || "main";
 
     const used = photoNumbers(draft.body);
-    const coverN = draft.cover && used.includes(draft.cover) ? draft.cover : used[0] || null;
+    const coverN = coverNumber(draft, (await BlogDB.listPhotos(draft.id)).map((p) => p.n));
 
     // Pick the post's file name once; later updates keep it even if the title changes
     let slug = draft.slug;
@@ -226,7 +238,7 @@
       const photo = await BlogDB.getPhoto(draft.id, coverN);
       const small = await resizeImage(photo.blob, THUMB_SIDE, 0.8);
       const res = await api("POST", "/git/blobs", { content: await blobToBase64(small.blob), encoding: "base64" });
-      tree.push({ path: `assets/images/${slug}/${coverN}-small.jpg`, mode: "100644", type: "blob", sha: res.sha });
+      tree.push({ path: coverPath(slug, coverN).slice(1), mode: "100644", type: "blob", sha: res.sha });
     }
 
     progress("Uploading the post…");
@@ -310,6 +322,7 @@
     slugify,
     normaliseBody,
     photoNumbers,
+    coverNumber,
     PHOTO_REF,
     publishQueued,
     testConnection,

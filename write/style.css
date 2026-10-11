@@ -129,6 +129,28 @@ input.title-input { font-size: 20px; font-weight: 600; }
 .row { display: flex; gap: 10px; }
 .row > * { flex: 1; min-width: 0; }
 
+.cover-pick {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.cover-pick img, .cover-pick .ph {
+  width: 96px;
+  height: 72px;
+  flex: none;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--line);
+}
+.cover-pick .cover-info { flex: 1; min-width: 0; }
+.cover-pick .hint { margin: 0 0 8px; }
+.cover-pick .row { gap: 8px; }
+.cover-pick .row .btn { flex: 0 0 auto; }
+
 .toolbar {
   position: sticky;
   top: 61px;

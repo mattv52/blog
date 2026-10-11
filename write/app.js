@@ -160,8 +160,7 @@
     const items = [];
     for (const d of drafts) {
       const photos = await BlogDB.listPhotos(d.id);
-      const used = Publisher.photoNumbers(d.body);
-      const coverN = d.cover && used.includes(d.cover) ? d.cover : used[0];
+      const coverN = Publisher.coverNumber(d, photos.map((p) => p.n));
       const cover = photos.find((p) => p.n === coverN);
       const st = statusOf(d);
       items.push(
@@ -229,6 +228,12 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flushSave, 400);
     renderPublishBar();
+    // Refresh photo labels / cover when a photo line is typed or deleted
+    const usedKey = Publisher.photoNumbers(d.body).join(",");
+    if (usedKey !== current.usedKey) {
+      current.usedKey = usedKey;
+      renderPhotos();
+    }
   }
 
   function flushSave() {
@@ -268,10 +273,12 @@
         h("div", {}, h("label", { for: "date" }, "Date"), field("date", h("input", { type: "date", id: "date", disabled: !!d.path }))),
         h("div", {}, h("label", { for: "excerpt" }, "Summary (shown on home page)"), field("excerpt", h("input", { type: "text", id: "excerpt", placeholder: "Quorn to Wilmington" })))
       ),
+      h("label", {}, "Cover image (home page)"),
+      h("div", { class: "cover-pick", id: "cover-pick" }),
       h(
         "div",
         { class: "toolbar" },
-        h("button", { class: "btn primary", onclick: () => photoInput.click() }, "📷 Photos"),
+        h("button", { class: "btn primary", onclick: () => pickPhotos("insert") }, "📷 Photos"),
         h("button", { class: "btn", onclick: () => wrapSelection("**", "**", "bold") }, h("b", {}, "B")),
         h("button", { class: "btn", onclick: () => prefixLine("## ") }, "Heading"),
         h("button", { class: "btn", onclick: () => prefixLine("- ") }, "• List"),
@@ -287,19 +294,49 @@
     renderPublishBar();
   }
 
+  function photoUrl(p) {
+    return p.url || (p.url = urlFor(p.blob));
+  }
+
+  /** Photo strip and cover picker (both change when the cover or the text changes). */
   function renderPhotos() {
     const d = current.draft;
     const used = Publisher.photoNumbers(d.body);
-    const coverN = d.cover && used.includes(d.cover) ? d.cover : used[0];
+    const coverN = Publisher.coverNumber(d, current.photos.map((p) => p.n));
+    const cover = current.photos.find((p) => p.n === coverN);
+
+    const pick = $("#cover-pick");
+    if (pick) {
+      let note = "No cover yet. The first photo in the post is used unless you choose one.";
+      if (cover && d.cover !== coverN) note = `Using the first photo in the post (#${coverN}).`;
+      else if (cover) note = used.includes(coverN) ? `Photo #${coverN}, also in the post.` : "Cover only, not shown in the post.";
+      pick.replaceChildren(
+        cover ? h("img", { src: photoUrl(cover), alt: "Cover" }) : h("div", { class: "ph" }),
+        h(
+          "div",
+          { class: "cover-info" },
+          h("div", { class: "hint" }, note),
+          h(
+            "div",
+            { class: "row" },
+            h("button", { class: "btn", onclick: () => pickPhotos("cover") }, cover ? "📷 Change" : "📷 Choose"),
+            d.cover ? h("button", { class: "btn", onclick: () => setCover(null) }, "Reset") : ""
+          )
+        )
+      );
+    }
+
     const box = $("#photos");
     if (!box) return;
     box.replaceChildren(
-      ...current.photos.map((p) =>
-        h(
+      ...current.photos.map((p) => {
+        const inPost = used.includes(p.n);
+        const label = inPost ? `#${p.n}` : p.n === coverN ? `#${p.n} cover only` : `#${p.n} not used`;
+        return h(
           "div",
           { class: "photo" },
-          h("img", { src: p.url || (p.url = urlFor(p.blob)), alt: `Photo ${p.n}`, class: used.includes(p.n) ? "" : "unused" }),
-          h("span", { class: "num" }, used.includes(p.n) ? `#${p.n}` : `#${p.n} not in post`),
+          h("img", { src: photoUrl(p), alt: `Photo ${p.n}`, class: inPost || p.n === coverN ? "" : "unused" }),
+          h("span", { class: "num" }, label),
           p.n === coverN ? h("span", { class: "cover-tag" }, "Cover") : "",
           h(
             "div",
@@ -308,8 +345,8 @@
             h("button", { onclick: () => setCover(p.n) }, "Cover"),
             h("button", { onclick: () => removePhoto(p.n), "aria-label": `Remove photo ${p.n}` }, "✕")
           )
-        )
-      )
+        );
+      })
     );
   }
 
@@ -389,6 +426,15 @@
 
   // -- photos
 
+  // "insert": add photos at the cursor; "cover": add one photo as the cover only
+  let pickMode = "insert";
+
+  function pickPhotos(mode) {
+    pickMode = mode;
+    photoInput.multiple = mode === "insert";
+    photoInput.click();
+  }
+
   photoInput.addEventListener("change", async () => {
     const files = [...photoInput.files];
     photoInput.value = "";
@@ -409,8 +455,10 @@
       }
     }
     busy.textContent = "";
-    if (added.length) insertPhotos(added);
-    scheduleSave(); // nextPhoto changed
+    if (added.length && pickMode === "cover") d.cover = added[0];
+    else if (added.length) insertPhotos(added);
+    scheduleSave(); // nextPhoto (and maybe cover) changed
+    renderPhotos();
   });
 
   function insertPhotos(numbers) {
@@ -423,9 +471,9 @@
     renderPhotos();
   }
 
+  /** Choose the cover (null = first photo in the post). It doesn't have to be in the post. */
   function setCover(n) {
     current.draft.cover = n;
-    if (!Publisher.photoNumbers(current.draft.body).includes(n)) insertPhotos([n]);
     scheduleSave();
     renderPhotos();
   }

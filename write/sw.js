@@ -3,7 +3,7 @@
 /* global importScripts, Publisher */
 importScripts("db.js", "publish.js");
 
-const CACHE = "writer-v1"; // bump when any file below changes
+const CACHE = "writer-v2"; // bump when any file below changes
 const FILES = [
   "./",
   "index.html",
