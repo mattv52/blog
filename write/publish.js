@@ -281,6 +281,47 @@
     return draft;
   }
 
+  /** Remove a published post from the blog: its post file and its photo folder, in one commit. */
+  async function unpublishDraft(draft, settings) {
+    const run = async () => {
+      const api = github(settings);
+      const branch = settings.branch || "main";
+      const folder = `assets/images/${draft.slug}/`;
+      for (let attempt = 1; ; attempt++) {
+        const ref = await api("GET", `/git/ref/heads/${branch}`);
+        if (!ref) throw new GitHubError(`Branch ${branch} not found.`, 404, false);
+        const at = `?ref=${ref.object.sha}`;
+        const post = await api("GET", `/contents/${draft.path}${at}`);
+        const photos = (await api("GET", `/contents/${folder.slice(0, -1)}${at}`)) || [];
+        const removals = (Array.isArray(photos) ? photos : [])
+          .filter((f) => f.type === "file" && f.path.startsWith(folder))
+          .map((f) => f.path);
+        if (post) removals.push(draft.path);
+        if (!removals.length) return; // already gone
+
+        const head = await api("GET", `/git/commits/${ref.object.sha}`);
+        const newTree = await api("POST", "/git/trees", {
+          base_tree: head.tree.sha,
+          tree: removals.map((path) => ({ path, mode: "100644", type: "blob", sha: null })),
+        });
+        const commit = await api("POST", "/git/commits", {
+          message: `Delete post: ${draft.title || "Untitled"}`,
+          tree: newTree.sha,
+          parents: [ref.object.sha],
+        });
+        try {
+          await api("PATCH", `/git/refs/heads/${branch}`, { sha: commit.sha });
+          return;
+        } catch (e) {
+          if (e.status === 422 && attempt < 3) continue;
+          throw e;
+        }
+      }
+    };
+    if (scope.navigator && navigator.locks) return navigator.locks.request("blog-writer-publish", run);
+    return run();
+  }
+
   /** Publish every draft that's waiting for signal. Safe to call from page and worker at once. */
   async function publishQueued(onUpdate) {
     const notify = onUpdate || (() => {});
@@ -335,6 +376,7 @@
     coverNumber,
     PHOTO_REF,
     publishQueued,
+    unpublishDraft,
     testConnection,
   };
 })(typeof self !== "undefined" ? self : window);

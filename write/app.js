@@ -530,8 +530,26 @@
 
   async function deleteDraft() {
     const d = current.draft;
-    const msg = d.status === "published" ? "Delete this draft from your phone? The published post stays on the blog." : "Delete this draft and its photos?";
-    if (!confirm(msg)) return;
+    const onBlog = !!(d.url && d.path); // published at least once
+    if (!onBlog) {
+      if (!confirm("Delete this draft and its photos?")) return;
+    } else {
+      if (!confirm(`Delete “${d.title || "Untitled"}” from the blog and this phone? This can't be undone here.`)) return;
+      if (!navigator.onLine) {
+        alert("Deleting from the blog needs signal. Try again when you're back online.");
+        return;
+      }
+      const bar = $("#publish-bar");
+      bar.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      bar.prepend(h("div", { class: "status queued" }, "Deleting from the blog…"));
+      try {
+        await Publisher.unpublishDraft(d, await BlogDB.getSettings());
+      } catch (e) {
+        alert(`Couldn't delete it from the blog: ${e.message}`);
+        renderPublishBar();
+        return;
+      }
+    }
     clearTimeout(saveTimer);
     await BlogDB.deleteDraft(d.id);
     current = null;
