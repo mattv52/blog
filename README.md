@@ -33,4 +33,5 @@ Posts in `_drafts/` (no date in the file name) are not published.
 | `_drafts/` | Unpublished drafts |
 | `assets/images/` | Photos, one folder per post |
 | `about.md`, `live-location.md` | Pages in the top menu |
+| `tools/import_squarespace.py` | One-off script that imported the Squarespace posts and photos |
 | `copies/` | Squarespace backups, local only (git-ignored) |

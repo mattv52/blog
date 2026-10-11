@@ -18,6 +18,7 @@ theme: minima
 plugins:
   - jekyll-feed
   - jekyll-seo-tag
+  - jekyll-redirect-from
 
 # Pages shown in the top navigation, in order
 header_pages:
@@ -33,6 +34,7 @@ minima:
 # Kept out of the built site
 exclude:
   - copies/
+  - tools/
   - README.md
   - Gemfile
   - Gemfile.lock
